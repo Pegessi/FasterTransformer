@@ -189,7 +189,7 @@ void LlamaWeight<T>::setWeightPtr()
     prompt_learning_table.resize(prompt_learning_pair_.size());
 
     pre_decoder_embedding_table   = weights_ptr[0];
-    post_decoder_layernorm.beta   = weights_ptr[1];
+    post_decoder_layernorm.beta   = nullptr;//weights_ptr[1]; // T5LayerNorm will do normal layer norm unless gets nullptr beta
     post_decoder_layernorm.gamma  = weights_ptr[2];
     post_decoder_embedding.kernel = weights_ptr[3];
 
@@ -212,7 +212,7 @@ void LlamaWeight<T>::mallocWeights()
     weights_ptr.resize(num_base_weights + prompt_learning_pair_.size());
 
     deviceMalloc(&weights_ptr[0], vocab_size_ * hidden_units_);
-    deviceMalloc(&weights_ptr[1], hidden_units_);
+    //deviceMalloc(&weights_ptr[1], hidden_units_);
     deviceMalloc(&weights_ptr[2], hidden_units_);
     deviceMalloc(&weights_ptr[3], hidden_units_ * vocab_size_);
 
