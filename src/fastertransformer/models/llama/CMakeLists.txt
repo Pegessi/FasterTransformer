@@ -14,29 +14,29 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-add_library(GptNeoXDecoderLayerWeight STATIC GptNeoXDecoderLayerWeight.cc)
-set_property(TARGET GptNeoXDecoderLayerWeight PROPERTY POSITION_INDEPENDENT_CODE  ON)
-set_property(TARGET GptNeoXDecoderLayerWeight PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
-target_link_libraries(GptNeoXDecoderLayerWeight PUBLIC memory_utils cuda_utils logger)
+add_library(LlamaDecoderLayerWeight STATIC LlamaDecoderLayerWeight.cc)
+set_property(TARGET LlamaDecoderLayerWeight PROPERTY POSITION_INDEPENDENT_CODE  ON)
+set_property(TARGET LlamaDecoderLayerWeight PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
+target_link_libraries(LlamaDecoderLayerWeight PUBLIC memory_utils cuda_utils logger)
 
-add_library(GptNeoXDecoder STATIC GptNeoXDecoder.cc)
-set_property(TARGET GptNeoXDecoder PROPERTY POSITION_INDEPENDENT_CODE  ON)
-set_property(TARGET GptNeoXDecoder PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
-target_link_libraries(GptNeoXDecoder PUBLIC -lcudart cublasMMWrapper
+add_library(LlamaDecoder STATIC LlamaDecoder.cc)
+set_property(TARGET LlamaDecoder PROPERTY POSITION_INDEPENDENT_CODE  ON)
+set_property(TARGET LlamaDecoder PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
+target_link_libraries(LlamaDecoder PUBLIC -lcudart cublasMMWrapper
                       TensorParallelDecoderSelfAttentionLayer
                       TensorParallelGeluFfnLayer
                       layernorm_kernels
                       add_residual_kernels
-                      GptNeoXDecoderLayerWeight
+                      LlamaDecoderLayerWeight
                       tensor
                       nccl_utils
                       cuda_utils
                       logger)
 
-add_library(GptNeoXContextDecoder STATIC GptNeoXContextDecoder.cc)
-set_property(TARGET GptNeoXContextDecoder PROPERTY POSITION_INDEPENDENT_CODE  ON)
-set_property(TARGET GptNeoXContextDecoder PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
-target_link_libraries(GptNeoXContextDecoder PUBLIC -lcudart cublasMMWrapper
+add_library(LlamaContextDecoder STATIC LlamaContextDecoder.cc)
+set_property(TARGET LlamaContextDecoder PROPERTY POSITION_INDEPENDENT_CODE  ON)
+set_property(TARGET LlamaContextDecoder PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
+target_link_libraries(LlamaContextDecoder PUBLIC -lcudart cublasMMWrapper
                       TensorParallelGptContextAttentionLayer
                       TensorParallelGeluFfnLayer
                       layernorm_kernels
@@ -47,23 +47,23 @@ target_link_libraries(GptNeoXContextDecoder PUBLIC -lcudart cublasMMWrapper
                       cuda_utils
                       logger)
 
-add_library(GptNeoXWeight STATIC GptNeoXWeight.cc)
-set_property(TARGET GptNeoXWeight PROPERTY POSITION_INDEPENDENT_CODE  ON)
-set_property(TARGET GptNeoXWeight PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
-target_link_libraries(GptNeoXWeight PUBLIC GptNeoXDecoderLayerWeight cuda_utils logger)
+add_library(LlamaWeight STATIC LlamaWeight.cc)
+set_property(TARGET LlamaWeight PROPERTY POSITION_INDEPENDENT_CODE  ON)
+set_property(TARGET LlamaWeight PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
+target_link_libraries(LlamaWeight PUBLIC LlamaDecoderLayerWeight cuda_utils logger)
 
-add_library(GptNeoX STATIC GptNeoX.cc)
-set_property(TARGET GptNeoX PROPERTY POSITION_INDEPENDENT_CODE  ON)
-set_property(TARGET GptNeoX PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
-target_link_libraries(GptNeoX PUBLIC -lcudart
-                      GptNeoXDecoder
-                      GptNeoXContextDecoder
+add_library(Llama STATIC Llama.cc)
+set_property(TARGET Llama PROPERTY POSITION_INDEPENDENT_CODE  ON)
+set_property(TARGET Llama PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS  ON)
+target_link_libraries(Llama PUBLIC -lcudart
+                      LlamaDecoder
+                      LlamaContextDecoder
                       decoding_kernels
                       gpt_kernels
                       DynamicDecodeLayer
                       BaseBeamSearchLayer
                       bert_preprocess_kernels
                       tensor
-                      GptNeoXWeight
+                      LlamaWeight
                       cuda_utils
                       logger)

@@ -15,7 +15,7 @@
  */
 
 #include "src/fastertransformer/models/llama/LlamaDecoder.h"
-#include "src/fastertransformer/layers/TensorParallelGeluFfnLayer.h"
+#include "src/fastertransformer/layers/TensorParallelSiluFfnLayer.h"
 #include "src/fastertransformer/layers/attention_layers/TensorParallelDecoderSelfAttentionLayer.h"
 
 namespace fastertransformer {
@@ -39,7 +39,7 @@ void LlamaDecoder<T>::initialize()
                                                                            custom_all_reduce_comm_,
                                                                            enable_custom_all_reduce_);
 
-    ffn_layer_ = new TensorParallelGeluFfnLayer<T>(0,  // max_batch_size
+    ffn_layer_ = new TensorParallelSiluFfnLayer<T>(0,  // max_batch_size
                                                    1,
                                                    head_num_,
                                                    size_per_head_,
@@ -53,7 +53,7 @@ void LlamaDecoder<T>::initialize()
                                                    is_free_buffer_after_forward_,
                                                    false,
                                                    0,
-                                                   false,  // use_gated_activation = false;
+                                                   true,  // use_gated_activation = true;
                                                    custom_all_reduce_comm_,
                                                    enable_custom_all_reduce_);
 }
@@ -261,15 +261,13 @@ void LlamaDecoder<T>::forward(std::unordered_map<std::string, Tensor>*          
             }
         }
 
-        invokeGeneralLayerNorm(decoder_normed_input_,
+        invokeGeneralT5LayerNorm(decoder_normed_input_,
                                layer_input,
                                gpt_decoder_layer_weight->at(l)->pre_layernorm_weights.gamma,
                                gpt_decoder_layer_weight->at(l)->pre_layernorm_weights.beta,
                                layernorm_eps_,
                                local_batch_size,
                                hidden_units_,
-                               (float*)nullptr,
-                               0,
                                stream_);
         sync_check_cuda_error();
 
@@ -295,37 +293,17 @@ void LlamaDecoder<T>::forward(std::unordered_map<std::string, Tensor>*          
         self_attention_layer_->forward(&self_attention_output_tensors,
                                        &self_attention_input_tensors,
                                        &gpt_decoder_layer_weight->at(l)->self_attention_weights);
-        if (use_gptj_residual_) {
-            invokeGeneralLayerNorm(decoder_normed_input_,
-                                   layer_input,
-                                   gpt_decoder_layer_weight->at(l)->post_attention_layernorm_weights.gamma,
-                                   gpt_decoder_layer_weight->at(l)->post_attention_layernorm_weights.beta,
-                                   layernorm_eps_,
-                                   local_batch_size,
-                                   hidden_units_,
-                                   (float*)nullptr,
-                                   0,
-                                   stream_);
-        }
-        else {
-            invokeGeneralAddBiasResidualPreLayerNorm(
-                self_attn_output_,
-                decoder_normed_input_,
-                self_attn_output_,
-                layer_input,
-                gpt_decoder_layer_weight->at(l)->post_attention_layernorm_weights.gamma,
-                gpt_decoder_layer_weight->at(l)->post_attention_layernorm_weights.beta,
-                gpt_decoder_layer_weight->at(l)->self_attention_weights.attention_output_weight.bias,
-                layernorm_eps_,
-                local_batch_size,
-                hidden_units_,
-                (float*)nullptr,
-                (float*)nullptr,
-                (float*)nullptr,
-                (float*)nullptr,
-                0,
-                stream_);
-        }
+        invokeGeneralAddBiasResidualT5PreLayerNorm(
+            self_attn_output_, // modified in place, += residual. See https://github.com/NVIDIA/FasterTransformer/blob/d7ccf83a15c3fd30020d5007415a9c16e99f5f42/src/fastertransformer/kernels/layernorm_kernels.cu#L1430
+            decoder_normed_input_, //reused as normed_output to be fed to ffn
+            layer_input, // residual
+            gpt_decoder_layer_weight->at(l)->post_attention_layernorm_weights.gamma,
+            gpt_decoder_layer_weight->at(l)->post_attention_layernorm_weights.beta,
+            gpt_decoder_layer_weight->at(l)->self_attention_weights.attention_output_weight.bias,
+            layernorm_eps_,
+            local_batch_size,
+            hidden_units_,
+            stream_);
 
         TensorMap ffn_input_tensors(
             {{"ffn_input", Tensor{MEMORY_GPU, data_type, {local_batch_size, hidden_units_}, decoder_normed_input_}}});
@@ -336,33 +314,12 @@ void LlamaDecoder<T>::forward(std::unordered_map<std::string, Tensor>*          
                                               use_gptj_residual_ ? ffn_output_ : layer_output}}});
         ffn_layer_->forward(&ffn_output_tensors, &ffn_input_tensors, &gpt_decoder_layer_weight->at(l)->ffn_weights);
 
-        if (use_gptj_residual_) {
-            // Original workflow:
-            //      layer_output = layer_input + reduceSum(ffn_output + self_attn_output + ffn_output_bias)
-            // Our workflow:
-            //      layer_output = reduceSum(ffn_output + self_attn_output + ffn_output_bias + layer_input / TP_size)
-            // They are equivalent on math, but we can use same buffer for layer_input and layer_output
-            invokeAddBiasAttentionFfnResidual(layer_output,
-                                              ffn_output_,
-                                              self_attn_output_,
-                                              layer_input,
-                                              gpt_decoder_layer_weight->at(l)->ffn_weights.output_weight.bias,
-                                              local_batch_size,
-                                              hidden_units_,
-                                              tensor_para_.world_size_,
-                                              stream_);
-            if (tensor_para_.world_size_ > 1) {
-                ftNcclAllReduceSum(layer_output, layer_output, local_batch_size * hidden_units_, tensor_para_, stream_);
-            }
-        }
-        else {
-            invokeAddBiasResidual(layer_output,
-                                  self_attn_output_,
-                                  gpt_decoder_layer_weight->at(l)->ffn_weights.output_weight.bias,
-                                  local_batch_size,
-                                  hidden_units_,
-                                  stream_);
-        }
+        invokeAddBiasResidual(layer_output,
+                                self_attn_output_,
+                                gpt_decoder_layer_weight->at(l)->ffn_weights.output_weight.bias,
+                                local_batch_size,
+                                hidden_units_,
+                                stream_);
 
         sync_check_cuda_error();
 

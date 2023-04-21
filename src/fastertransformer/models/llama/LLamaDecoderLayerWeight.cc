@@ -39,10 +39,10 @@ template<typename T>
 LlamaDecoderLayerWeight<T>::~LlamaDecoderLayerWeight()
 {
     if (is_maintain_buffer == true) {
-        for (int i = 0; i < 12; i++) {
-            if (!use_gptj_residual_ && i != attention_dense_bias_weight_id) {
+        for (int i = 0; i < 7; i++) {
+            // if (!use_gptj_residual_ && i != attention_dense_bias_weight_id) {
                 cudaFree(weights_ptr[i]);
-            }
+            // }
         }
 
         pre_layernorm_weights.beta                            = nullptr;
@@ -56,6 +56,8 @@ LlamaDecoderLayerWeight<T>::~LlamaDecoderLayerWeight()
 
         ffn_weights.intermediate_weight.kernel = nullptr;
         ffn_weights.intermediate_weight.bias   = nullptr;
+        ffn_weights.intermediate_weight2.kernel = nullptr;
+        ffn_weights.intermediate_weight2.bias   = nullptr;
         ffn_weights.output_weight.kernel       = nullptr;
         ffn_weights.output_weight.bias         = nullptr;
         is_maintain_buffer                     = false;
@@ -72,20 +74,18 @@ LlamaDecoderLayerWeight<T>::LlamaDecoderLayerWeight(const LlamaDecoderLayerWeigh
 {
     mallocWeights();
     cudaD2Dcpy(weights_ptr[0], other.weights_ptr[0], hidden_units_);
-    cudaD2Dcpy(weights_ptr[1], other.weights_ptr[1], hidden_units_);
-    cudaD2Dcpy(weights_ptr[2], other.weights_ptr[2], hidden_units_ * 3 * hidden_units_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[3], other.weights_ptr[3], 3 * hidden_units_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[4], other.weights_ptr[4], hidden_units_ / tensor_para_size_ * hidden_units_);
-    if (!use_gptj_residual_) {
-        cudaD2Dcpy(weights_ptr[5], other.weights_ptr[5], hidden_units_);
-    }
+    cudaD2Dcpy(weights_ptr[1], other.weights_ptr[1], hidden_units_ * 3 * hidden_units_ / tensor_para_size_);
+    cudaD2Dcpy(weights_ptr[2], other.weights_ptr[2], hidden_units_ / tensor_para_size_ * hidden_units_);
+    // if (!use_gptj_residual_) {
+    //     cudaD2Dcpy(weights_ptr[5], other.weights_ptr[5], hidden_units_);
+    // }
 
-    cudaD2Dcpy(weights_ptr[6], other.weights_ptr[6], hidden_units_ * inter_size_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[7], other.weights_ptr[7], inter_size_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[8], other.weights_ptr[8], inter_size_ / tensor_para_size_ * hidden_units_);
-    cudaD2Dcpy(weights_ptr[9], other.weights_ptr[9], hidden_units_);
-    cudaD2Dcpy(weights_ptr[10], other.weights_ptr[10], hidden_units_);
-    cudaD2Dcpy(weights_ptr[11], other.weights_ptr[11], hidden_units_);
+    // kernel of intermediate1, intermediate2, output
+    cudaD2Dcpy(weights_ptr[3], other.weights_ptr[3], hidden_units_ * inter_size_ / tensor_para_size_);
+    cudaD2Dcpy(weights_ptr[4], other.weights_ptr[4], hidden_units_ * inter_size_ / tensor_para_size_);
+    cudaD2Dcpy(weights_ptr[5], other.weights_ptr[5], inter_size_ / tensor_para_size_ * hidden_units_);
+
+    cudaD2Dcpy(weights_ptr[6], other.weights_ptr[6], hidden_units_);
     setWeightPtr();
 }
 
@@ -101,19 +101,15 @@ LlamaDecoderLayerWeight<T>& LlamaDecoderLayerWeight<T>::operator=(const LlamaDec
     mallocWeights();
 
     cudaD2Dcpy(weights_ptr[0], other.weights_ptr[0], hidden_units_);
-    cudaD2Dcpy(weights_ptr[1], other.weights_ptr[1], hidden_units_);
-    cudaD2Dcpy(weights_ptr[2], other.weights_ptr[2], hidden_units_ * 3 * hidden_units_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[3], other.weights_ptr[3], 3 * hidden_units_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[4], other.weights_ptr[4], hidden_units_ / tensor_para_size_ * hidden_units_);
-    if (!use_gptj_residual_) {
-        cudaD2Dcpy(weights_ptr[5], other.weights_ptr[5], hidden_units_);
-    }
-    cudaD2Dcpy(weights_ptr[6], other.weights_ptr[6], hidden_units_ * inter_size_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[7], other.weights_ptr[7], inter_size_ / tensor_para_size_);
-    cudaD2Dcpy(weights_ptr[8], other.weights_ptr[8], inter_size_ / tensor_para_size_ * hidden_units_);
-    cudaD2Dcpy(weights_ptr[9], other.weights_ptr[9], hidden_units_);
-    cudaD2Dcpy(weights_ptr[10], other.weights_ptr[10], hidden_units_);
-    cudaD2Dcpy(weights_ptr[11], other.weights_ptr[11], hidden_units_);
+    cudaD2Dcpy(weights_ptr[1], other.weights_ptr[1], hidden_units_ * 3 * hidden_units_ / tensor_para_size_);
+    cudaD2Dcpy(weights_ptr[2], other.weights_ptr[2], hidden_units_ / tensor_para_size_ * hidden_units_);
+
+    // kernel of intermediate1, intermediate2, output
+    cudaD2Dcpy(weights_ptr[3], other.weights_ptr[3], hidden_units_ * inter_size_ / tensor_para_size_);
+    cudaD2Dcpy(weights_ptr[3], other.weights_ptr[4], hidden_units_ * inter_size_ / tensor_para_size_);
+    cudaD2Dcpy(weights_ptr[5], other.weights_ptr[5], inter_size_ / tensor_para_size_ * hidden_units_);
+
+    cudaD2Dcpy(weights_ptr[6], other.weights_ptr[6], hidden_units_);
     setWeightPtr();
     return *this;
 }
@@ -125,72 +121,53 @@ void LlamaDecoderLayerWeight<T>::loadModel(std::string dir_path, FtCudaDataType 
     const std::string rank_spec = std::to_string(tensor_para_rank_);
 
     loadWeightFromBin<T>(
-        weights_ptr[0], {(size_t)hidden_units_}, dir_path + ".input_layernorm.bias.bin", model_file_type);
-    loadWeightFromBin<T>(
-        weights_ptr[1], {(size_t)hidden_units_}, dir_path + ".input_layernorm.weight.bin", model_file_type);
-    loadWeightFromBin<T>(weights_ptr[2],
+        weights_ptr[0], {(size_t)hidden_units_}, dir_path + ".input_layernorm.weight.bin", model_file_type);
+    loadWeightFromBin<T>(weights_ptr[1],
                          {(size_t)hidden_units_, (size_t)(3 * hidden_units_ / tensor_para_size_)},
                          dir_path + ".attention.query_key_value.weight." + rank_spec + ".bin",
                          model_file_type);
 
-    loadWeightFromBin<T>(weights_ptr[3],
-                         {(size_t)(3 * hidden_units_ / tensor_para_size_)},
-                         dir_path + ".attention.query_key_value.bias." + rank_spec + ".bin",
-                         model_file_type);
-
-    loadWeightFromBin<T>(weights_ptr[4],
+    loadWeightFromBin<T>(weights_ptr[2],
                          {(size_t)(hidden_units_ / tensor_para_size_), (size_t)hidden_units_},
-                         dir_path + ".attention.dense.weight." + rank_spec + ".bin",
+                         dir_path + ".self_attn.o_proj.weight." + rank_spec + ".bin",
                          model_file_type);
 
-    if (!use_gptj_residual_) {
-        loadWeightFromBin<T>(
-            weights_ptr[5], {(size_t)hidden_units_}, dir_path + ".attention.dense.bias.bin", model_file_type);
-    }
-
-    loadWeightFromBin<T>(weights_ptr[6],
+    loadWeightFromBin<T>(weights_ptr[3],
                          {(size_t)hidden_units_, (size_t)(inter_size_ / tensor_para_size_)},
-                         dir_path + ".mlp.dense_h_to_4h.weight." + rank_spec + ".bin",
+                         dir_path + ".mlp.gate_proj.weight." + rank_spec + ".bin",
                          model_file_type);
-    loadWeightFromBin<T>(weights_ptr[7],
-                         {(size_t)(inter_size_ / tensor_para_size_)},
-                         dir_path + ".mlp.dense_h_to_4h.bias." + rank_spec + ".bin",
+    loadWeightFromBin<T>(weights_ptr[4],
+                         {(size_t)hidden_units_, (size_t)(inter_size_ / tensor_para_size_)},
+                         dir_path + ".mlp.up_proj.weight." + rank_spec + ".bin",
                          model_file_type);
-    loadWeightFromBin<T>(weights_ptr[8],
+    loadWeightFromBin<T>(weights_ptr[5],
                          {(size_t)(inter_size_ / tensor_para_size_), (size_t)hidden_units_},
-                         dir_path + ".mlp.dense_4h_to_h.weight." + rank_spec + ".bin",
+                         dir_path + ".mlp.down_proj.weight." + rank_spec + ".bin",
                          model_file_type);
-    if (use_gptj_residual_) {
-        loadWeightFromBin<T>(
-            weights_ptr[9], {(size_t)hidden_units_}, dir_path + ".mlp.attention.bias.sum.bin", model_file_type);
-    }
-    else {
-        loadWeightFromBin<T>(
-            weights_ptr[9], {(size_t)hidden_units_}, dir_path + ".mlp.dense_4h_to_h.bias.bin", model_file_type);
-    }
+
     loadWeightFromBin<T>(
-        weights_ptr[10], {(size_t)hidden_units_}, dir_path + ".post_attention_layernorm.bias.bin", model_file_type);
-    loadWeightFromBin<T>(
-        weights_ptr[11], {(size_t)hidden_units_}, dir_path + ".post_attention_layernorm.weight.bin", model_file_type);
+        weights_ptr[6], {(size_t)hidden_units_}, dir_path + ".post_attention_layernorm.weight.bin", model_file_type);
 }
 
 template<typename T>
 void LlamaDecoderLayerWeight<T>::setWeightPtr()
 {
-    pre_layernorm_weights.beta                            = weights_ptr[0];
-    pre_layernorm_weights.gamma                           = weights_ptr[1];
-    self_attention_weights.query_weight.kernel            = weights_ptr[2];
-    self_attention_weights.query_weight.bias              = weights_ptr[3];
-    self_attention_weights.attention_output_weight.kernel = weights_ptr[4];
-    self_attention_weights.attention_output_weight.bias   = use_gptj_residual_ ? nullptr : weights_ptr[5];
+    pre_layernorm_weights.beta                            = nullptr;
+    pre_layernorm_weights.gamma                           = weights_ptr[0];
+    self_attention_weights.query_weight.kernel            = weights_ptr[1];
+    self_attention_weights.query_weight.bias              = nullptr;
+    self_attention_weights.attention_output_weight.kernel = weights_ptr[2];
+    self_attention_weights.attention_output_weight.bias   = nullptr;
 
-    ffn_weights.intermediate_weight.kernel = weights_ptr[6];
-    ffn_weights.intermediate_weight.bias   = weights_ptr[7];
-    ffn_weights.output_weight.kernel       = weights_ptr[8];
-    ffn_weights.output_weight.bias         = weights_ptr[9];
+    ffn_weights.intermediate_weight.kernel = weights_ptr[3];
+    ffn_weights.intermediate_weight.bias   = nullptr;
+    ffn_weights.intermediate_weight2.kernel = weights_ptr[4];
+    ffn_weights.intermediate_weight2.bias   = nullptr;
+    ffn_weights.output_weight.kernel       = weights_ptr[5];
+    ffn_weights.output_weight.bias         = nullptr;
 
-    post_attention_layernorm_weights.beta  = weights_ptr[10];
-    post_attention_layernorm_weights.gamma = weights_ptr[11];
+    post_attention_layernorm_weights.beta  = nullptr;
+    post_attention_layernorm_weights.gamma = weights_ptr[6];
     is_maintain_buffer                     = true;
 }
 
@@ -198,20 +175,14 @@ template<typename T>
 void LlamaDecoderLayerWeight<T>::mallocWeights()
 {
     deviceMalloc(&weights_ptr[0], hidden_units_);
-    deviceMalloc(&weights_ptr[1], hidden_units_);
-    deviceMalloc(&weights_ptr[2], hidden_units_ * 3 * hidden_units_ / tensor_para_size_);
-    deviceMalloc(&weights_ptr[3], 3 * hidden_units_ / tensor_para_size_);
-    deviceMalloc(&weights_ptr[4], hidden_units_ / tensor_para_size_ * hidden_units_);
-    if (!use_gptj_residual_) {
-        deviceMalloc(&weights_ptr[5], hidden_units_);
-    }
+    deviceMalloc(&weights_ptr[1], hidden_units_ * 3 * hidden_units_ / tensor_para_size_);
+    deviceMalloc(&weights_ptr[2], hidden_units_ / tensor_para_size_ * hidden_units_);
 
-    deviceMalloc(&weights_ptr[6], hidden_units_ * inter_size_ / tensor_para_size_);
-    deviceMalloc(&weights_ptr[7], inter_size_ / tensor_para_size_);
-    deviceMalloc(&weights_ptr[8], inter_size_ / tensor_para_size_ * hidden_units_);
-    deviceMalloc(&weights_ptr[9], hidden_units_);
-    deviceMalloc(&weights_ptr[10], hidden_units_);
-    deviceMalloc(&weights_ptr[11], hidden_units_);
+    deviceMalloc(&weights_ptr[3], hidden_units_ * inter_size_ / tensor_para_size_);
+    deviceMalloc(&weights_ptr[4], hidden_units_ * inter_size_ / tensor_para_size_);
+    deviceMalloc(&weights_ptr[5], inter_size_ / tensor_para_size_ * hidden_units_);
+
+    deviceMalloc(&weights_ptr[6], hidden_units_);
 }
 
 template struct LlamaDecoderLayerWeight<float>;
