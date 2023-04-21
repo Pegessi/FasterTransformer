@@ -235,13 +235,11 @@ void LlamaWeight<T>::mallocWeights()
 template<typename T>
 void LlamaWeight<T>::loadModel(std::string dir_path)
 {
-    FtCudaDataType model_file_type = getModelFileType(dir_path + "/config.ini", "gptneox");
+    FtCudaDataType model_file_type = getModelFileType(dir_path + "/config.ini", "llama");
     FT_CHECK(is_maintain_buffer == true);
 
     loadWeightFromBin<T>(
-        weights_ptr[0], {(size_t)(vocab_size_ * hidden_units_)}, dir_path + "/model.wte.bin", model_file_type);
-    // loadWeightFromBin<T>(
-        // weights_ptr[1], {(size_t)hidden_units_}, dir_path + "/model.final_layernorm.bias.bin", model_file_type);
+        weights_ptr[0], {(size_t)(vocab_size_ * hidden_units_)}, dir_path + "/model.wte.weight.bin", model_file_type);
     loadWeightFromBin<T>(
         weights_ptr[2], {(size_t)hidden_units_}, dir_path + "/model.final_layernorm.weight.bin", model_file_type);
     loadWeightFromBin<T>(weights_ptr[3],

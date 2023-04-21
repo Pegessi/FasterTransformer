@@ -153,6 +153,7 @@ void GptContextAttentionLayer<T>::forward(TensorMap*                output_tenso
         cudaMemsetAsync(
             q_buf_2_, 0, request_batch_size * request_seq_len * 3 * local_hidden_units_ * sizeof(T), stream_);
     }
+    sync_check_cuda_error();
     invokeAddFusedQKVBiasTranspose(q_buf_2_,
                                    k_buf_2_,
                                    v_buf_2_,

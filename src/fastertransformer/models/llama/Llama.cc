@@ -843,16 +843,13 @@ void Llama<T>::forward(std::unordered_map<std::string, Tensor>*       output_ten
             }
 
             if (pipeline_para_.rank_ == pipeline_para_.world_size_ - 1) {
-                // Does llama use this? 
-                invokeGeneralLayerNorm(normed_decoder_output_buf_ + hidden_units_offset,
+                invokeGeneralT5LayerNorm(normed_decoder_output_buf_ + hidden_units_offset,
                                        decoder_output_buf_ + hidden_units_offset,
                                        gpt_weights->post_decoder_layernorm.gamma,
                                        gpt_weights->post_decoder_layernorm.beta,
                                        layernorm_eps_,
                                        local_batch_size * beam_width,
                                        hidden_units_,
-                                       (float*)nullptr,
-                                       0,
                                        stream_);
                 sync_check_cuda_error();
 

@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Hack to include stdio.h
+add_definitions(-include stdio.h)
+
 add_subdirectory(fastertransformer)

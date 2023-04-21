@@ -52,7 +52,6 @@ void LlamaDecoder<T>::initialize()
                                                    !use_gptj_residual_,
                                                    is_free_buffer_after_forward_,
                                                    false,
-                                                   0,
                                                    true,  // use_gated_activation = true;
                                                    custom_all_reduce_comm_,
                                                    enable_custom_all_reduce_);

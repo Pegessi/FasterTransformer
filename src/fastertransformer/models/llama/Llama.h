@@ -61,7 +61,7 @@ private:
          std::string(std::getenv("CONTEXT_ATTENTION_BMM1_HALF_ACCUM")) != "ON");
 
     // Residual Type
-    const bool use_gptj_residual_ = true;
+    const bool use_gptj_residual_ = false;
 
     // Prompt Learning Parameters
     PromptLearningType prompt_learning_type_;
