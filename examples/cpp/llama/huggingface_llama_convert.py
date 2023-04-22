@@ -93,7 +93,7 @@ def split_and_convert(args):
       print("Processing attention")
       # Handle the qkv weights
       qkvArr = np.empty((hidden_size, 3, n_heads, head_size), dtype=np_weight_data_type)
-      qArr = paramToArr(model.state_dict()[f"model.layers.{hiddenLayerNum}.self_attn.k_proj.weight"])
+      qArr = paramToArr(model.state_dict()[f"model.layers.{hiddenLayerNum}.self_attn.q_proj.weight"])
       # Hopefully this reshaping is correct... last two dims could also be swapped & need to be transposed
       qkvArr[:, 0, :, :] = qArr.reshape(hidden_size, n_heads, head_size)
       kArr = paramToArr(model.state_dict()[f"model.layers.{hiddenLayerNum}.self_attn.k_proj.weight"])
