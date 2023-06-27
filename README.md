@@ -1,4 +1,4 @@
-Note from cameronfr: this was a conversion of LLama.cpp for FasterTransformer. The python weights conversion script is incorrect because it misses a .T (transpose). See [Issue#506](https://github.com/NVIDIA/FasterTransformer/issues/506) for updated progress.
+Note from cameronfr: this was an implementation of LLama for FasterTransformer. The python weights conversion script is incorrect because it misses a .T (transpose). Otherwise, the implementation should be correct. See [Issue#506](https://github.com/NVIDIA/FasterTransformer/issues/506) for updated progress.
 
 # FasterTransformer
 
