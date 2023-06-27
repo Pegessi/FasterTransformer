@@ -1,3 +1,5 @@
+Note from cameronfr: this was a conversion of LLama.cpp for FasterTransformer. The python weights conversion script is incorrect because it misses a .T (transpose). See [Issue#506](https://github.com/NVIDIA/FasterTransformer/issues/506) for updated progress.
+
 # FasterTransformer
 
 This repository provides a script and recipe to run the highly optimized transformer-based encoder and decoder component, and it is tested and maintained by NVIDIA.
