@@ -63,6 +63,7 @@ int read_start_ids(size_t            batch_size,
     }
 
     max_input_len = tmp_start_lengths.data()[0];
+    printf("max_input_len: %ld\n", max_input_len);
     for (uint i = 1; i < (uint)tmp_start_lengths.size(); i++) {
         max_input_len = max_input_len > tmp_start_lengths.data()[i] ? max_input_len : tmp_start_lengths.data()[i];
     }

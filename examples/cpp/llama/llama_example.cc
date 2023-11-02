@@ -23,6 +23,7 @@
 #include "src/fastertransformer/utils/word_list.h"
 
 #include <cuda_profiler_api.h>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -66,6 +67,13 @@ int main(int argc, char* argv[])
     }
     mpi::finalize();
     return 0;
+}
+
+void logger(char *line) {
+    std::ofstream ofs;
+    ofs.open("llama_record.txt", std::ios::app);
+        ofs << line << std::endl;
+    ofs.close();
 }
 
 template<typename T>
@@ -469,16 +477,23 @@ void llama_example(const INIReader reader)
 
     cudaProfilerStop();
 
-    printf("[INFO] request_batch_size %ld beam_width %ld head_num %ld size_per_head %ld total_output_len %d"
+    float latency = ((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) * 0.001) / ite;
+    float tokens_per_second = total_output_len / (latency / 1000);
+    printf("[INFO] request_batch_size %ld beam_width %ld head_num %ld size_per_head %ld max_input_len %ld total_output_len %d"
            " decoder_layers %ld vocab_size %ld FT-CPP-decoding-beamsearch-time %.2f ms\n",
            request_batch_size,
            beam_width,
            head_num,
            size_per_head,
+           max_input_len,
            total_output_len,
            decoder_layers,
            vocab_size,
-           ((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) * 0.001) / ite);
+           latency);
+    char buffer[256];
+
+    std::sprintf(buffer, "%ld %ld %d %.3f %.3f", request_batch_size, max_input_len, request_output_len, latency, tokens_per_second);
+    logger(buffer);
 
     ftNcclParamDestroy(tensor_para);
     ftNcclParamDestroy(pipeline_para);

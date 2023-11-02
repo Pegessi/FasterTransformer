@@ -19,7 +19,7 @@ def get_weight_data_type(data_type):
     else:
         assert False, f"Invalid weight data type {data_type}"
 
-def split_and_convert(args):
+def split_and_convert(args=None):
     #saved_dir = args.saved_dir + "/%d-gpu/" % args.infer_gpu_num
 
     #if os.path.exists(saved_dir) == False:
@@ -30,8 +30,8 @@ def split_and_convert(args):
     #dummy args
     factor = 1
     args = argparse.Namespace()
-    args.in_file = "~/llama-weights-hf/7B"
-    saved_dir = "~/LlamaFTTesting"
+    args.in_file = "/root/autodl-tmp/model_scope/Llama-2-7b-hf"
+    saved_dir = "/root/autodl-tmp/model_scope/Llama-2-7b-FT"
     args.weight_data_type = "fp16"
     args.model_name = "llama"
     model = LlamaForCausalLM.from_pretrained(args.in_file)
